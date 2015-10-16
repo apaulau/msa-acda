@@ -1,0 +1,119 @@
+---
+title: "Многомерное нормальное распределение"
+output: 
+  html_document: 
+    keep_md: yes
+    toc: yes
+---
+
+## Многомерное нормальное распределение.
+
+### 1. Изучить функцию, позволяющую получать многомерные нормально распределенные выборки $Х = (х_1, \dots, х_N), N >= 3$
+
+Define function for generating a random positive-definite matrix with user-specified positive eigenvalues. If eigenvalues are not specified, they are generated from a uniform distribution.
+```{r PD-matrix}
+PDmatrix <- function (n, ev = runif(n, 0, 10)) {
+  Z <- matrix(ncol=n, rnorm(n^2))
+  decomp <- qr(Z)
+  Q <- qr.Q(decomp) 
+  R <- qr.R(decomp)
+  d <- diag(R)
+  ph <- d / abs(d)
+  O <- Q %*% diag(ph)
+  Z <- t(O) %*% diag(ev) %*% O
+  return(Z)
+}
+```
+
+Initialize variables
+```{r init}
+N <- 10^3
+mu <- runif(3, 0, 100)
+sigma <- PDmatrix(3)
+
+print(mu)
+print(sigma)
+```
+
+Generate multidimensional sample with init values
+```{r mnorm}
+library(MASS)
+mnorm <- mvrnorm(N, mu, sigma)
+
+head(mnorm)
+```
+
+### 2. Выделить две компоненты и построить график соответствующей плотности (маргинальной);
+2d:
+```{r}
+library(ggplot2)
+
+twocomp <- data.frame(x = mnorm[, 1], y = mnorm[, 2])
+
+ggplot(twocomp, aes(x = twocomp$x, y = twocomp$y)) + geom_point() + 
+    geom_rug(col=rgb(.5,0,0,alpha=.2))
+```
+
+3d:
+```{r, fig.width=10, fig.height=10}
+library(sm)
+# sm.density(twocomp, display="rgl")
+sm.density(twocomp)
+```
+### 3. Выделить три компоненты и построить диаграмму рассеивания scatter diagram (оси Ох1, Ох2, Ох3);
+```{r, fig.width=10, fig.height=10}
+library(scatterplot3d)
+
+# plot3d(mnorm)
+scatterplot3d(mnorm, highlight.3d = TRUE, pch = 20)
+```
+
+### 4. Оценить параметры норм распределения, например, по формулам из лекции;
+Expeсted value
+```{r}
+mean(mnorm[, 1])
+```
+
+Variance
+```{r}
+var(mnorm[, 1])
+```
+
+### 5. Сгенерировать выборку из многомерного РВ, отличного от нормального;
+```{r}
+mnotnorm <- log(mnorm^c(1, 2, 3))
+head(mnotnorm)
+```
+
+### 6. Выделить две компоненты и построить соответсвующую гистограмму (убедиться в ненормальности);
+
+2d:
+```{r}
+twocomp <- data.frame(x = sample(mnotnorm[, 1]), y = sample(mnotnorm[, 2]))
+
+ggplot(twocomp, aes(x = twocomp$x, y = twocomp$y)) + geom_point() + 
+    geom_rug(col=rgb(.5,0,0,alpha=.2))
+```
+
+3d:
+```{r, fig.width=10, fig.height=10}
+# sm.density(twocomp, display="rgl")
+sm.density(twocomp)
+```
+
+### 7. Для нормальной выборки выбрать 2 компоненты, отличные от первой и вычислить множественный коэф. корреляциии 1-й комп. и выбранных
+By formula $$R_{z, xy} = \sqrt{\frac{r_{xz}^2 + r_{yz}^2 - 2 r_{yz} r_{xz} r_{xy}}{1 - r_{xy}^2}}$$ where `z` -- first component.
+```{r}
+mcor <- function(d, x, y, z = 1) {
+  r_xy <- cor(d[, x], d[, y])
+  r_xz <- cor(d[, x], d[, z])
+  r_yz <- cor(d[, y], d[, z])
+  
+  sqrt((r_xz^2 + r_yz^2 - 2 * r_yz * r_xz * r_xy) / (1 - r_xy^2))
+}
+```
+
+Multiple correlation coefficent:
+```{r}
+mcor(mnorm, 2, 3)
+```
