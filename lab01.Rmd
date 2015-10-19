@@ -51,7 +51,7 @@ library(ggplot2)
 twocomp <- data.frame(x = mnorm[, 1], y = mnorm[, 2])
 
 ggplot(twocomp, aes(x = twocomp$x, y = twocomp$y)) + geom_point() + 
-    geom_rug(col=rgb(.5,0,0,alpha=.2))
+  geom_rug(col=rgb(.5,0,0,alpha=.2))
 ```
 
 3d:
@@ -60,6 +60,18 @@ library(sm)
 # sm.density(twocomp, display="rgl")
 sm.density(twocomp)
 ```
+
+Histogram:
+```{r, fig.width=10, fig.height=10}
+xc <- cut(twocomp$x, 20)
+yc <- cut(twocomp$y, 20)
+
+z <- table(xc, yc)
+
+library(plot3D)
+hist3D(z=z, border = "black")
+```
+
 ### 3. Выделить три компоненты и построить диаграмму рассеивания scatter diagram (оси Ох1, Ох2, Ох3);
 ```{r, fig.width=10, fig.height=10}
 library(scatterplot3d)
@@ -71,12 +83,12 @@ scatterplot3d(mnorm, highlight.3d = TRUE, pch = 20)
 ### 4. Оценить параметры норм распределения, например, по формулам из лекции;
 Expeсted value
 ```{r}
-mean(mnorm[, 1])
+apply(mnorm, 2, mean)
 ```
 
-Variance
+Covariance matrix
 ```{r}
-var(mnorm[, 1])
+var(mnorm)
 ```
 
 ### 5. Сгенерировать выборку из многомерного РВ, отличного от нормального;
@@ -92,13 +104,24 @@ head(mnotnorm)
 twocomp <- data.frame(x = sample(mnotnorm[, 1]), y = sample(mnotnorm[, 2]))
 
 ggplot(twocomp, aes(x = twocomp$x, y = twocomp$y)) + geom_point() + 
-    geom_rug(col=rgb(.5,0,0,alpha=.2))
+  geom_rug(col=rgb(.5,0,0,alpha=.2))
 ```
 
 3d:
 ```{r, fig.width=10, fig.height=10}
 # sm.density(twocomp, display="rgl")
 sm.density(twocomp)
+```
+
+Histogram:
+```{r, fig.width=10, fig.height=10}
+xc <- cut(twocomp$x, 20)
+yc <- cut(twocomp$y, 20)
+
+z <- table(xc, yc)
+
+library(plot3D)
+hist3D(z=z, border = "black")
 ```
 
 ### 7. Для нормальной выборки выбрать 2 компоненты, отличные от первой и вычислить множественный коэф. корреляциии 1-й комп. и выбранных
