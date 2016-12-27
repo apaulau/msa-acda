@@ -1,0 +1,169 @@
+---
+title: "Факторный анализ"
+output: 
+  html_document: 
+    keep_md: yes
+    toc: yes
+runtime: shiny
+---
+
+```{r, echo=FALSE}
+library(ggplot2)
+```
+
+
+## Read data
+```{r, echo = FALSE}
+selectInput("filepath", "Data source",  c("data/T8-4.DAT", "data/T8-5.DAT", "data/T8-6.DAT"))
+
+filepath <- reactive({input$filepath})
+
+renderUI({
+  html <- ""
+  if (input$filepath == "data/T8-4.DAT") {
+    html <- "<b>NY stock exhange</b>. Стоимость акций пяти компаний за единицу времени."  
+  }
+  if (input$filepath == "data/T8-5.DAT") {
+    html <- "<b>Перепись населения</b>. Данные представляют собой показатели уровня жизни населения:<br> 1 - численность населения в тысячах человек;<br> 2 - медиана числа лет, проводённых в школе;<br> 3 - общее число занятых в тысячах человек;<br> 4 - число занятых в здравоохранении в сотнях человек;<br> 5 - стоимость домов в сотнях тысяч $<br>"
+  }
+  if (input$filepath == "data/T8-6.DAT") {
+    html <- "<b>Рекорды в беге для 55 стран</b>. Рассматриваемые показатели:<br> 1 - рекорд в беге на 100 метров;<br> 2 - рекорд в беге на 200 метров;<br> 3 - рекорд в беге на 400 метров;<br> 5 - рекорд в беге на 800 метров;<br> 6 - рекорд в беге на 1500 метров;<br> 7 - рекорд в беге на 5000 метров;<br> 8 - рекорд в беге на 10000 метров;<br> 9 - рекорд в марафонском беге.<br>"
+  }
+  HTML(html)
+})
+
+dataFull <- reactive({
+  dt <- read.table(file = filepath(), header = FALSE)
+  if (input$filepath == "data/T8-4.DAT") {
+    colnames(dt) <- sapply(1:5, function(i) paste("Company", i))
+  }
+  if (input$filepath == "data/T8-5.DAT") {
+    colnames(dt) <- c("Population", "School Years", "Employment", "Medical Employment", "Property Cost")
+  }
+  if (input$filepath == "data/T8-6.DAT") {
+    colnames(dt) <- c("100m", "200m", "400m", "800m", "1500m", "8000m", "10000m", "Marathon", "Country")
+    rownames(dt) <- dt$Country
+  }
+  dt
+})
+
+data <- reactive({
+  dt <- dataFull()
+  if (input$filepath == "data/T8-6.DAT") {
+    dt$Country <- NULL
+  }
+  dt
+})
+
+renderDataTable({
+  dataFull()
+}, options = list(searching = FALSE, info = TRUE, pageLength = 10))
+
+renderPlot({
+  plot.ts(data())
+})
+```
+
+Выборочное характеристики
+```{r, echo=FALSE}
+renderTable({summary(data())})
+```
+
+Вычисляем корреляционную матрицу для дальнейшего исследования
+```{r, echo=FALSE}
+corr <- reactive({cor(data())})
+renderTable({
+  corr()
+  }, digits = 7)
+```
+
+Найдём собственные значения корреляционной матрицы
+```{r, echo=FALSE}
+eigenV <- reactive({
+  corr <- corr()
+  eigen(corr)
+})
+
+renderText({eigenV()$values})
+```
+
+График собственных значений
+```{r, echo=FALSE}
+renderPlot({
+  values <- eigenV()$values
+  ggplot(data.frame(Value = values, Index = seq_along(values)), aes(Index, Value)) + geom_point() + geom_line()
+})
+```
+
+```{r, echo=FALSE}
+renderUI({
+  HTML(paste("Собственные значения по модулю большие 1:", "<b>", which(eigenV()$values > 1), "</b>"))
+  })
+```
+
+Посчитаем доли дисперсии, объясняемые факторами:
+```{r, echo=FALSE}
+renderText({
+  values <- eigenV()$values
+  sapply(1:length(values), function(index) sum(values[1:index]) / length(values))
+})
+```
+
+Сформируем главные компоненты
+```{r, echo=FALSE}
+pca <- reactive({prcomp(data(), scale. = TRUE, center = TRUE)})
+
+renderTable({pca()})
+
+renderPlot({
+  screeplot(pca(), type = "lines")
+})
+
+factors <- reactive({
+  values <- eigenV()$values
+  pc <- pca()
+  f <- sapply(seq_along(values), function(i) pc$rotation[, i] * sqrt(values[i]))
+  colnames(f) <- c(sapply(seq_along(values), function(i) paste("Factor", i)))
+  f
+})
+
+renderTable({factors()}, digits = 5)
+```
+
+Найдем специфические факторы для всех случаев
+```{r, echo=FALSE}
+omega <- reactive({
+  f <- factors()
+  I <- do.call("rbind", replicate(length(f[, 1]), rep(1, length(f[1, ])), simplify = FALSE))
+  sapply(seq_along(I[1, ]), function(i) I[, i] - rowSums(sapply(1:i, function(j) f[, j] ^ 2)))
+})
+
+renderTable({
+  omega()
+}, digits = 5)
+```
+
+Найдём матрицу остатков
+```{r, echo=FALSE}
+numericInput("nfactors", "Выберите количество факторов: ", 1)
+
+nfactors <- reactive({
+  input$nfactors
+})
+
+renderTable({
+  corr <- corr()
+  f <- factors()
+  o <- omega()
+  n <- nfactors()
+  lambda <- f[, 1:n]
+  
+  corr - (lambda %*% t(lambda) + diag(o[, n]))
+}, digits = 5)
+```
+
+```{r, echo=FALSE}
+renderPrint({
+  factanal(data(), factors = nfactors())
+})
+```

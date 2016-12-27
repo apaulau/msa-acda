@@ -1,0 +1,149 @@
+---
+title: "Метод главных компонент"
+output: 
+  html_document: 
+    keep_md: yes
+    toc: yes
+runtime: shiny
+---
+
+## Initialization
+```{r}
+library(ggplot2)
+library(car)
+library(factoextra)
+```
+
+
+## Read data
+```{r, echo = FALSE}
+selectInput("filepath", "Data source",  c("data/T8-4.DAT", "data/T8-5.DAT", "data/T8-6.DAT", "data/T8-23.DAT"))
+
+filepath <- reactive({input$filepath})
+
+renderUI({
+  html <- ""
+  if (input$filepath == "data/T8-4.DAT") {
+    html <- "<b>NY stock exhange</b>. Стоимость акций пяти компаний за единицу времени."  
+  }
+  if (input$filepath == "data/T8-5.DAT") {
+    html <- "<b>Перепись населения</b>. Данные представляют собой показатели уровня жизни населения:<br> 1 - численность населения в тысячах человек;<br> 2 - медиана числа лет, проводённых в школе;<br> 3 - общее число занятых в тысячах человек;<br> 4 - число занятых в здравоохранении в сотнях человек;<br> 5 - стоимость домов в сотнях тысяч $<br>"
+  }
+  if (input$filepath == "data/T8-6.DAT") {
+    html <- "<b>Рекорды в беге для 55 стран</b>. Рассматриваемые показатели:<br> 1 - рекорд в беге на 100 метров;<br> 2 - рекорд в беге на 200 метров;<br> 3 - рекорд в беге на 400 метров;<br> 5 - рекорд в беге на 800 метров;<br> 6 - рекорд в беге на 1500 метров;<br> 7 - рекорд в беге на 5000 метров;<br> 8 - рекорд в беге на 10000 метров;<br> 9 - рекорд в марафонском беге.<br>"
+  }
+  HTML(html)
+})
+
+dataFull <- reactive({
+  dt <- read.table(file = filepath(), header = FALSE)
+  if (input$filepath == "data/T8-4.DAT") {
+    colnames(dt) <- sapply(1:5, function(i) paste("Company", i))
+  }
+  if (input$filepath == "data/T8-5.DAT") {
+    colnames(dt) <- c("Population", "School Years", "Employment", "Medical Employment", "Property Cost")
+  }
+  if (input$filepath == "data/T8-6.DAT") {
+    colnames(dt) <- c("100m", "200m", "400m", "800m", "1500m", "8000m", "10000m", "Marathon", "Country")
+    rownames(dt) <- dt$Country
+  }
+  dt
+})
+
+data <- reactive({
+  dt <- dataFull()
+  if (input$filepath == "data/T8-6.DAT") {
+    dt$Country <- NULL
+  }
+  dt
+})
+
+renderDataTable({
+  dataFull()
+}, options = list(searching = FALSE, info = TRUE, pageLength = 10))
+
+renderPlot({
+  plot.ts(data())
+})
+```
+
+Выборочное характеристики
+```{r, echo=FALSE}
+renderTable({summary(data())})
+```
+
+```{r, echo=FALSE}
+renderPlot({
+  scatterplotMatrix(data())
+}, width = 800, height = 600)
+```
+
+Ковариационная матрица
+```{r, echo=FALSE}
+renderTable({
+  cov(data())
+  }, digits = 7)
+```
+
+Корреляционная матрица
+```{r, echo=FALSE}
+corr <- reactive({cor(data())})
+renderTable({
+  corr()
+  }, digits = 7)
+```
+
+Найдём собственные значения корреляционной матрицы
+```{r, echo=FALSE}
+eigenV <- reactive({
+  corr <- corr()
+  eigen(corr)
+})
+
+renderText({eigenV()$values})
+```
+
+## Principal Components Analysis
+
+Сформируем главные компоненты
+```{r, echo=FALSE}
+pca <- reactive({prcomp(data(), scale. = TRUE)})
+
+renderTable({pca()})
+
+
+renderPlot({
+  plot(pca()$rotation)
+})
+
+renderPlot({
+  screeplot(pca(), type = "lines")
+})
+
+renderTable({summary(pca())})
+```
+
+```{r, echo=FALSE}
+numericInput("pc1", "Input principle component number: ", 1)
+
+pc1 <- reactive({
+  pca()$x[, input$pc1]
+})
+
+renderPlot({
+  qplot(seq_along(pc1()), pc1())
+})
+
+numericInput("pc2", "Input principle component number: ", 2)
+pc2 <- reactive({
+  pca()$x[, input$pc2]
+})
+
+renderPlot({
+  qplot(pc1(), pc2())
+})
+
+renderPlot({
+  fviz_pca_var(pca(), col.var = "contrib") + labs(title = "PCA", x = "PC1", y = "PC2")
+})
+```
